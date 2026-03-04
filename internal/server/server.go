@@ -44,16 +44,17 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 	"github.com/git-pkgs/proxy/internal/config"
 	"github.com/git-pkgs/proxy/internal/database"
 	"github.com/git-pkgs/proxy/internal/enrichment"
 	"github.com/git-pkgs/proxy/internal/handler"
 	"github.com/git-pkgs/proxy/internal/metrics"
 	"github.com/git-pkgs/proxy/internal/storage"
+	"github.com/git-pkgs/purl"
 	"github.com/git-pkgs/registries/fetch"
 	"github.com/git-pkgs/spdx"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 // Server is the main proxy server.
@@ -613,15 +614,15 @@ func (s *Server) handleVersionShow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	purl := fmt.Sprintf("pkg:%s/%s@%s", ecosystem, name, version)
-	ver, err := s.db.GetVersionByPURL(purl)
+	versionPURL := purl.MakePURLString(ecosystem, name, version)
+	ver, err := s.db.GetVersionByPURL(versionPURL)
 	if err != nil || ver == nil {
 		s.logger.Error("failed to get version", "error", err)
 		http.Error(w, "version not found", http.StatusNotFound)
 		return
 	}
 
-	artifacts, err := s.db.GetArtifactsByVersionPURL(purl)
+	artifacts, err := s.db.GetArtifactsByVersionPURL(versionPURL)
 	if err != nil {
 		s.logger.Error("failed to get artifacts", "error", err)
 		artifacts = []database.Artifact{}

@@ -9,8 +9,9 @@ import (
 	"strings"
 
 	"github.com/git-pkgs/archives"
-	"github.com/git-pkgs/proxy/internal/database"
 	"github.com/git-pkgs/archives/diff"
+	"github.com/git-pkgs/proxy/internal/database"
+	"github.com/git-pkgs/purl"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -49,8 +50,8 @@ func (s *Server) handleBrowseList(w http.ResponseWriter, r *http.Request) {
 	dirPath := r.URL.Query().Get("path")
 
 	// Get the artifact for this version
-	purl := fmt.Sprintf("pkg:%s/%s@%s", ecosystem, name, version)
-	artifacts, err := s.db.GetArtifactsByVersionPURL(purl)
+	versionPURL := purl.MakePURLString(ecosystem, name, version)
+	artifacts, err := s.db.GetArtifactsByVersionPURL(versionPURL)
 	if err != nil {
 		http.Error(w, "version not found", http.StatusNotFound)
 		return
@@ -137,8 +138,8 @@ func (s *Server) handleBrowseFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get the artifact for this version
-	purl := fmt.Sprintf("pkg:%s/%s@%s", ecosystem, name, version)
-	artifacts, err := s.db.GetArtifactsByVersionPURL(purl)
+	versionPURL := purl.MakePURLString(ecosystem, name, version)
+	artifacts, err := s.db.GetArtifactsByVersionPURL(versionPURL)
 	if err != nil {
 		http.Error(w, "version not found", http.StatusNotFound)
 		return
@@ -345,8 +346,8 @@ func (s *Server) handleCompareDiff(w http.ResponseWriter, r *http.Request) {
 	toVersion := chi.URLParam(r, "toVersion")
 
 	// Get artifacts for both versions
-	fromPURL := fmt.Sprintf("pkg:%s/%s@%s", ecosystem, name, fromVersion)
-	toPURL := fmt.Sprintf("pkg:%s/%s@%s", ecosystem, name, toVersion)
+	fromPURL := purl.MakePURLString(ecosystem, name, fromVersion)
+	toPURL := purl.MakePURLString(ecosystem, name, toVersion)
 
 	fromArtifacts, err := s.db.GetArtifactsByVersionPURL(fromPURL)
 	if err != nil || len(fromArtifacts) == 0 {

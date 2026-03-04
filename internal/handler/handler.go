@@ -13,6 +13,7 @@ import (
 	"github.com/git-pkgs/proxy/internal/database"
 	"github.com/git-pkgs/proxy/internal/metrics"
 	"github.com/git-pkgs/proxy/internal/storage"
+	"github.com/git-pkgs/purl"
 	"github.com/git-pkgs/registries/fetch"
 )
 
@@ -50,8 +51,8 @@ type CacheResult struct {
 
 // GetOrFetchArtifact retrieves an artifact from cache or fetches from upstream.
 func (p *Proxy) GetOrFetchArtifact(ctx context.Context, ecosystem, name, version, filename string) (*CacheResult, error) {
-	pkgPURL := fmt.Sprintf("pkg:%s/%s", ecosystem, name)
-	versionPURL := fmt.Sprintf("pkg:%s/%s@%s", ecosystem, name, version)
+	pkgPURL := purl.MakePURLString(ecosystem, name, "")
+	versionPURL := purl.MakePURLString(ecosystem, name, version)
 
 	if cached, err := p.checkCache(ctx, pkgPURL, versionPURL, filename); err != nil {
 		return nil, err
@@ -101,8 +102,9 @@ func (p *Proxy) checkCache(ctx context.Context, pkgPURL, versionPURL, filename s
 	_ = p.DB.RecordArtifactHit(versionPURL, filename)
 
 	// Extract ecosystem from pkgPURL for metrics
-	ecosystem := extractEcosystem(pkgPURL)
-	metrics.RecordCacheHit(ecosystem)
+	if p, err := purl.Parse(pkgPURL); err == nil {
+		metrics.RecordCacheHit(purl.PURLTypeToEcosystem(p.Type))
+	}
 
 	return &CacheResult{
 		Reader:      reader,
@@ -251,8 +253,8 @@ func JSONError(w http.ResponseWriter, status int, message string) {
 // GetOrFetchArtifactFromURL retrieves an artifact from cache or fetches from a specific URL.
 // This is useful for registries where download URLs are determined from metadata.
 func (p *Proxy) GetOrFetchArtifactFromURL(ctx context.Context, ecosystem, name, version, filename, downloadURL string) (*CacheResult, error) {
-	pkgPURL := fmt.Sprintf("pkg:%s/%s", ecosystem, name)
-	versionPURL := fmt.Sprintf("pkg:%s/%s@%s", ecosystem, name, version)
+	pkgPURL := purl.MakePURLString(ecosystem, name, "")
+	versionPURL := purl.MakePURLString(ecosystem, name, version)
 
 	if cached, err := p.checkCache(ctx, pkgPURL, versionPURL, filename); err != nil {
 		return nil, err
@@ -297,28 +299,3 @@ func (p *Proxy) fetchAndCacheFromURL(ctx context.Context, ecosystem, name, versi
 	}, nil
 }
 
-// extractEcosystem extracts the ecosystem from a package PURL.
-// PURL format: pkg:ecosystem/name[@version]
-func extractEcosystem(purl string) string {
-	if len(purl) < 5 || !startsWith(purl, "pkg:") {
-		return "unknown"
-	}
-	rest := purl[4:] // Skip "pkg:"
-	if idx := indexOf(rest, "/"); idx != -1 {
-		return rest[:idx]
-	}
-	return "unknown"
-}
-
-func startsWith(s, prefix string) bool {
-	return len(s) >= len(prefix) && s[:len(prefix)] == prefix
-}
-
-func indexOf(s, substr string) int {
-	for i := 0; i+len(substr) <= len(s); i++ {
-		if s[i:i+len(substr)] == substr {
-			return i
-		}
-	}
-	return -1
-}

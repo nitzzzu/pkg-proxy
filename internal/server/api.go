@@ -6,9 +6,10 @@ import (
 	"strings"
 
 	shared "github.com/git-pkgs/enrichment"
-	"github.com/go-chi/chi/v5"
 	"github.com/git-pkgs/proxy/internal/database"
 	"github.com/git-pkgs/proxy/internal/enrichment"
+	"github.com/git-pkgs/purl"
+	"github.com/go-chi/chi/v5"
 )
 
 // APIHandler provides REST endpoints for package enrichment data.
@@ -357,24 +358,15 @@ func (h *APIHandler) HandleBulkLookup(w http.ResponseWriter, r *http.Request) {
 	} else {
 		// Fall back to individual lookups via registries
 		packages := make([]struct{ Ecosystem, Name string }, 0, len(req.PURLs))
-		purlMap := make(map[string]string) // map from "ecosystem/name" to original purl
 
-		for _, purl := range req.PURLs {
-			// Parse PURL to extract ecosystem and name
-			// Format: pkg:ecosystem/name@version
-			if strings.HasPrefix(purl, "pkg:") {
-				parts := strings.SplitN(purl[4:], "/", 2)
-				if len(parts) == 2 {
-					ecosystem := parts[0]
-					namePart := parts[1]
-					// Remove version if present
-					if idx := strings.Index(namePart, "@"); idx > 0 {
-						namePart = namePart[:idx]
-					}
-					packages = append(packages, struct{ Ecosystem, Name string }{ecosystem, namePart})
-					purlMap[ecosystem+"/"+namePart] = purl
-				}
+		for _, purlStr := range req.PURLs {
+			p, err := purl.Parse(purlStr)
+			if err != nil {
+				continue
 			}
+			ecosystem := purl.PURLTypeToEcosystem(p.Type)
+			name := p.FullName()
+			packages = append(packages, struct{ Ecosystem, Name string }{ecosystem, name})
 		}
 
 		results := h.enrichment.BulkEnrichPackages(r.Context(), packages)
