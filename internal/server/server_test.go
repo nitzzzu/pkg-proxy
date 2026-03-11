@@ -57,8 +57,8 @@ func newTestServer(t *testing.T) *testServer {
 	proxy := handler.NewProxy(db, store, fetcher, resolver, logger)
 
 	cfg := &config.Config{
-		BaseURL: "http://localhost:8080",
-		Storage: config.StorageConfig{Path: storagePath},
+		BaseURL:  "http://localhost:8080",
+		Storage:  config.StorageConfig{Path: storagePath},
 		Database: config.DatabaseConfig{Path: dbPath},
 	}
 
@@ -195,6 +195,18 @@ func TestDashboard(t *testing.T) {
 	}
 	if !strings.Contains(body, "Popular Packages") {
 		t.Error("dashboard should contain popular packages section")
+	}
+	if !strings.Contains(body, ">composer<") {
+		t.Error("dashboard should show composer in supported ecosystems")
+	}
+	if !strings.Contains(body, ">conan<") {
+		t.Error("dashboard should show conan in supported ecosystems")
+	}
+	if !strings.Contains(body, ">container<") {
+		t.Error("dashboard should show container in supported ecosystems")
+	}
+	if !strings.Contains(body, ">debian<") {
+		t.Error("dashboard should show debian in supported ecosystems")
 	}
 }
 

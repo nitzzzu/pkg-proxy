@@ -21,8 +21,11 @@ func NewTemplates() (*Templates, error) {
 
 	// Define custom template functions
 	funcMap := template.FuncMap{
-		"add": func(a, b int) int { return a + b },
-		"sub": func(a, b int) int { return a - b },
+		"add":                 func(a, b int) int { return a + b },
+		"sub":                 func(a, b int) int { return a - b },
+		"supportedEcosystems": supportedEcosystems,
+		"ecosystemBadgeClass": ecosystemBadgeClasses,
+		"ecosystemBadgeLabel": ecosystemBadgeLabel,
 	}
 
 	// Get all page files

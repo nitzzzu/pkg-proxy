@@ -13,19 +13,9 @@
         <label for="ecosystem-filter" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Filter by ecosystem</label>
         <select id="ecosystem-filter" class="w-full max-w-xs px-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400">
             <option value="">All ecosystems</option>
-            <option value="npm"{{if eq .Ecosystem "npm"}} selected{{end}}>npm</option>
-            <option value="cargo"{{if eq .Ecosystem "cargo"}} selected{{end}}>cargo</option>
-            <option value="gem"{{if eq .Ecosystem "gem"}} selected{{end}}>gem</option>
-            <option value="go"{{if eq .Ecosystem "go"}} selected{{end}}>go</option>
-            <option value="hex"{{if eq .Ecosystem "hex"}} selected{{end}}>hex</option>
-            <option value="pub"{{if eq .Ecosystem "pub"}} selected{{end}}>pub</option>
-            <option value="pypi"{{if eq .Ecosystem "pypi"}} selected{{end}}>pypi</option>
-            <option value="maven"{{if eq .Ecosystem "maven"}} selected{{end}}>maven</option>
-            <option value="nuget"{{if eq .Ecosystem "nuget"}} selected{{end}}>nuget</option>
-            <option value="composer"{{if eq .Ecosystem "composer"}} selected{{end}}>composer</option>
-            <option value="conan"{{if eq .Ecosystem "conan"}} selected{{end}}>conan</option>
-            <option value="conda"{{if eq .Ecosystem "conda"}} selected{{end}}>conda</option>
-            <option value="cran"{{if eq .Ecosystem "cran"}} selected{{end}}>cran</option>
+            {{range supportedEcosystems}}
+            <option value="{{.}}"{{if eq $.Ecosystem .}} selected{{end}}>{{ecosystemBadgeLabel .}}</option>
+            {{end}}
         </select>
     </div>
 </div>

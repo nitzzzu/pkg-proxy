@@ -113,6 +113,77 @@ type PackagesListPageData struct {
 	TotalPages int
 }
 
+func supportedEcosystems() []string {
+	return []string{
+		"npm",
+		"cargo",
+		"gem",
+		"go",
+		"hex",
+		"pub",
+		"pypi",
+		"maven",
+		"nuget",
+		"composer",
+		"conan",
+		"conda",
+		"cran",
+		"oci",
+		"deb",
+		"rpm",
+	}
+}
+
+func ecosystemBadgeLabel(ecosystem string) string {
+	switch ecosystem {
+	case "oci":
+		return "container"
+	case "deb":
+		return "debian"
+	default:
+		return ecosystem
+	}
+}
+
+func ecosystemBadgeClasses(ecosystem string) string {
+	base := "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+
+	switch ecosystem {
+	case "npm", "maven":
+		return base + " bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
+	case "cargo":
+		return base + " bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300"
+	case "gem":
+		return base + " bg-pink-100 text-pink-700 dark:bg-pink-900/50 dark:text-pink-300"
+	case "go":
+		return base + " bg-cyan-100 text-cyan-700 dark:bg-cyan-900/50 dark:text-cyan-300"
+	case "hex":
+		return base + " bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300"
+	case "pub":
+		return base + " bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+	case "pypi":
+		return base + " bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-300"
+	case "nuget":
+		return base + " bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300"
+	case "composer":
+		return base + " bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300"
+	case "conan":
+		return base + " bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-300"
+	case "conda":
+		return base + " bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300"
+	case "cran":
+		return base + " bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+	case "oci":
+		return base + " bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300"
+	case "deb":
+		return base + " bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300"
+	case "rpm":
+		return base + " bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300"
+	default:
+		return base + " bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+	}
+}
+
 func getRegistryConfigs(baseURL string) []RegistryConfig {
 	return []RegistryConfig{
 		{

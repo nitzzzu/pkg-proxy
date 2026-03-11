@@ -19,12 +19,9 @@
             <div>
                 <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Supported Ecosystems</h3>
                 <div class="flex flex-wrap gap-1">
-                    <span class="ecosystem-npm px-2 py-0.5 rounded text-xs">npm</span>
-                    <span class="ecosystem-cargo px-2 py-0.5 rounded text-xs">cargo</span>
-                    <span class="ecosystem-gem px-2 py-0.5 rounded text-xs">gem</span>
-                    <span class="ecosystem-go px-2 py-0.5 rounded text-xs">go</span>
-                    <span class="ecosystem-pypi px-2 py-0.5 rounded text-xs">pypi</span>
-                    <span class="ecosystem-maven px-2 py-0.5 rounded text-xs">maven</span>
+                    {{range supportedEcosystems}}
+                    {{template "ecosystem_badge" .}}
+                    {{end}}
                 </div>
             </div>
         </div>
