@@ -172,7 +172,7 @@ func (h *ContainerHandler) handleManifest(w http.ResponseWriter, r *http.Request
 		}, ", "))
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := h.proxy.HTTPClient.Do(req)
 	if err != nil {
 		h.proxy.Logger.Error("failed to fetch manifest", "error", err)
 		h.containerError(w, http.StatusBadGateway, "INTERNAL_ERROR", "failed to fetch from upstream")
@@ -224,7 +224,7 @@ func (h *ContainerHandler) handleTagsList(w http.ResponseWriter, r *http.Request
 
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := h.proxy.HTTPClient.Do(req)
 	if err != nil {
 		h.containerError(w, http.StatusBadGateway, "INTERNAL_ERROR", "failed to fetch from upstream")
 		return
@@ -248,7 +248,7 @@ func (h *ContainerHandler) getAuthToken(_ interface{ Done() <-chan struct{} }, r
 		return "", err
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := h.proxy.HTTPClient.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -285,7 +285,7 @@ func (h *ContainerHandler) proxyBlobHead(w http.ResponseWriter, r *http.Request,
 
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := h.proxy.HTTPClient.Do(req)
 	if err != nil {
 		h.containerError(w, http.StatusBadGateway, "INTERNAL_ERROR", "failed to fetch from upstream")
 		return
@@ -313,7 +313,7 @@ func (h *ContainerHandler) proxyBlobWithAuth(w http.ResponseWriter, r *http.Requ
 
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := h.proxy.HTTPClient.Do(req)
 	if err != nil {
 		h.containerError(w, http.StatusBadGateway, "INTERNAL_ERROR", "failed to fetch from upstream")
 		return

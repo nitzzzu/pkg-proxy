@@ -43,12 +43,13 @@ func ReadMetadata(r io.Reader) ([]byte, error) {
 
 // Proxy provides shared functionality for protocol handlers.
 type Proxy struct {
-	DB       *database.DB
-	Storage  storage.Storage
-	Fetcher  fetch.FetcherInterface
-	Resolver *fetch.Resolver
-	Logger   *slog.Logger
-	Cooldown *cooldown.Config
+	DB         *database.DB
+	Storage    storage.Storage
+	Fetcher    fetch.FetcherInterface
+	Resolver   *fetch.Resolver
+	Logger     *slog.Logger
+	Cooldown   *cooldown.Config
+	HTTPClient *http.Client
 }
 
 // NewProxy creates a new Proxy with the given dependencies.
@@ -62,6 +63,9 @@ func NewProxy(db *database.DB, store storage.Storage, fetcher fetch.FetcherInter
 		Fetcher:  fetcher,
 		Resolver: resolver,
 		Logger:   logger,
+		HTTPClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
 	}
 }
 

@@ -78,7 +78,7 @@ func (h *PyPIHandler) handleSimplePackage(w http.ResponseWriter, r *http.Request
 	}
 	req.Header.Set("Accept", "text/html")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := h.proxy.HTTPClient.Do(req)
 	if err != nil {
 		h.proxy.Logger.Error("upstream request failed", "error", err)
 		http.Error(w, "upstream request failed", http.StatusBadGateway)
@@ -121,7 +121,7 @@ func (h *PyPIHandler) fetchFilteredVersions(r *http.Request, name string) map[st
 	}
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := h.proxy.HTTPClient.Do(req)
 	if err != nil {
 		return nil
 	}
@@ -245,7 +245,7 @@ func (h *PyPIHandler) proxyAndRewriteJSON(w http.ResponseWriter, r *http.Request
 	}
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := h.proxy.HTTPClient.Do(req)
 	if err != nil {
 		h.proxy.Logger.Error("upstream request failed", "error", err)
 		http.Error(w, "upstream request failed", http.StatusBadGateway)
@@ -505,7 +505,7 @@ func (h *PyPIHandler) proxySimple(w http.ResponseWriter, r *http.Request, path s
 	}
 	req.Header.Set("Accept", "text/html")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := h.proxy.HTTPClient.Do(req)
 	if err != nil {
 		h.proxy.Logger.Error("upstream request failed", "error", err)
 		http.Error(w, "upstream request failed", http.StatusBadGateway)

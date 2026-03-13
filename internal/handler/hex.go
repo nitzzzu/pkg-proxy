@@ -104,7 +104,7 @@ func (h *HexHandler) proxyUpstream(w http.ResponseWriter, r *http.Request) {
 		req.Header.Set("Accept", accept)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := h.proxy.HTTPClient.Do(req)
 	if err != nil {
 		h.proxy.Logger.Error("upstream request failed", "error", err)
 		http.Error(w, "upstream request failed", http.StatusBadGateway)

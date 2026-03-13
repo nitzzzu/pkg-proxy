@@ -94,7 +94,7 @@ func (h *ComposerHandler) handlePackageMetadata(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := h.proxy.HTTPClient.Do(req)
 	if err != nil {
 		h.proxy.Logger.Error("upstream request failed", "error", err)
 		http.Error(w, "upstream request failed", http.StatusBadGateway)
@@ -221,7 +221,7 @@ func (h *ComposerHandler) handleDownload(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := h.proxy.HTTPClient.Do(req)
 	if err != nil {
 		h.proxy.Logger.Error("failed to fetch metadata", "error", err)
 		http.Error(w, "failed to fetch metadata", http.StatusBadGateway)
@@ -302,7 +302,7 @@ func (h *ComposerHandler) proxyUpstream(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := h.proxy.HTTPClient.Do(req)
 	if err != nil {
 		h.proxy.Logger.Error("upstream request failed", "error", err)
 		http.Error(w, "upstream request failed", http.StatusBadGateway)

@@ -95,7 +95,7 @@ func (h *PubHandler) handlePackageMetadata(w http.ResponseWriter, r *http.Reques
 	}
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := h.proxy.HTTPClient.Do(req)
 	if err != nil {
 		h.proxy.Logger.Error("upstream request failed", "error", err)
 		http.Error(w, "upstream request failed", http.StatusBadGateway)

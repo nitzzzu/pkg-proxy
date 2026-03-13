@@ -110,7 +110,7 @@ func (h *DebianHandler) handleMetadata(w http.ResponseWriter, r *http.Request, p
 		}
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := h.proxy.HTTPClient.Do(req)
 	if err != nil {
 		h.proxy.Logger.Error("failed to fetch upstream metadata", "error", err)
 		http.Error(w, "failed to fetch from upstream", http.StatusBadGateway)
@@ -139,7 +139,7 @@ func (h *DebianHandler) proxyFile(w http.ResponseWriter, r *http.Request, path s
 		return
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := h.proxy.HTTPClient.Do(req)
 	if err != nil {
 		http.Error(w, "failed to fetch from upstream", http.StatusBadGateway)
 		return

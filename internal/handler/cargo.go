@@ -90,7 +90,7 @@ func (h *CargoHandler) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := h.proxy.HTTPClient.Do(req)
 	if err != nil {
 		h.proxy.Logger.Error("failed to fetch upstream index", "error", err)
 		http.Error(w, "failed to fetch from upstream", http.StatusBadGateway)

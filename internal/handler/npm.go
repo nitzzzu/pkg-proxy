@@ -74,7 +74,7 @@ func (h *NPMHandler) handlePackageMetadata(w http.ResponseWriter, r *http.Reques
 	}
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := h.proxy.HTTPClient.Do(req)
 	if err != nil {
 		h.proxy.Logger.Error("failed to fetch upstream metadata", "error", err)
 		JSONError(w, http.StatusBadGateway, "failed to fetch from upstream")
