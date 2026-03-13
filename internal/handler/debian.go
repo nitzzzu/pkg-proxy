@@ -40,6 +40,11 @@ func (h *DebianHandler) Routes() http.Handler {
 
 		path := strings.TrimPrefix(r.URL.Path, "/")
 
+		if containsPathTraversal(path) {
+			http.Error(w, "invalid path", http.StatusBadRequest)
+			return
+		}
+
 		// Route based on path type
 		switch {
 		case strings.HasPrefix(path, "pool/"):

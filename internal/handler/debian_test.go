@@ -86,4 +86,13 @@ func TestDebianHandler_Routes(t *testing.T) {
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Errorf("POST request: got status %d, want %d", w.Code, http.StatusMethodNotAllowed)
 	}
+
+	// Test path traversal rejection
+	req = httptest.NewRequest(http.MethodGet, "/pool/../../../etc/passwd", nil)
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("path traversal: got status %d, want %d", w.Code, http.StatusBadRequest)
+	}
 }

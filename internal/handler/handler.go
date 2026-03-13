@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/git-pkgs/proxy/internal/cooldown"
@@ -17,6 +18,17 @@ import (
 	"github.com/git-pkgs/purl"
 	"github.com/git-pkgs/registries/fetch"
 )
+
+// containsPathTraversal returns true if the path contains ".." segments
+// that could be used to escape the intended directory.
+func containsPathTraversal(path string) bool {
+	for _, segment := range strings.Split(path, "/") {
+		if segment == ".." {
+			return true
+		}
+	}
+	return false
+}
 
 // Proxy provides shared functionality for protocol handlers.
 type Proxy struct {
