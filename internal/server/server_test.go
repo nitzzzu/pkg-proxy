@@ -3,6 +3,7 @@ package server
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/git-pkgs/proxy/internal/config"
 	"github.com/git-pkgs/proxy/internal/database"
@@ -506,5 +508,379 @@ func TestSearchWithNullValues(t *testing.T) {
 	body := w.Body.String()
 	if !strings.Contains(body, "test-pkg") {
 		t.Error("expected search results to contain package name")
+	}
+}
+
+func TestFormatTimeAgo_AllRanges(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    time.Time
+		expected string
+	}{
+		{"zero time", time.Time{}, ""},
+		{"now", time.Now(), "just now"},
+		{"30 seconds ago", time.Now().Add(-30 * time.Second), "just now"},
+		{"1 minute ago", time.Now().Add(-1 * time.Minute), "1 min ago"},
+		{"5 minutes ago", time.Now().Add(-5 * time.Minute), "5 mins ago"},
+		{"1 hour ago", time.Now().Add(-1 * time.Hour), "1 hour ago"},
+		{"3 hours ago", time.Now().Add(-3 * time.Hour), "3 hours ago"},
+		{"1 day ago", time.Now().Add(-24 * time.Hour), "1 day ago"},
+		{"3 days ago", time.Now().Add(-3 * 24 * time.Hour), "3 days ago"},
+		{"10 days ago", time.Now().Add(-10 * 24 * time.Hour), time.Now().Add(-10 * 24 * time.Hour).Format("Jan 2")},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := formatTimeAgo(tc.input)
+			if got != tc.expected {
+				t.Errorf("formatTimeAgo() = %q, want %q", got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestFormatSize_AllUnits(t *testing.T) {
+	tests := []struct {
+		bytes    int64
+		expected string
+	}{
+		{0, "0 B"},
+		{500, "500 B"},
+		{1024, "1.0 KB"},
+		{1536, "1.5 KB"},
+		{1048576, "1.0 MB"},
+		{1073741824, "1.0 GB"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.expected, func(t *testing.T) {
+			got := formatSize(tc.bytes)
+			if got != tc.expected {
+				t.Errorf("formatSize(%d) = %q, want %q", tc.bytes, got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestCategorizeLicense_NullString(t *testing.T) {
+	tests := []struct {
+		name     string
+		license  sql.NullString
+		expected string
+	}{
+		{"invalid null string", sql.NullString{Valid: false}, "unknown"},
+		{"MIT", sql.NullString{String: "MIT", Valid: true}, "permissive"},
+		{"GPL-3.0", sql.NullString{String: "GPL-3.0", Valid: true}, "copyleft"},
+		{"empty string", sql.NullString{String: "", Valid: true}, "unknown"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := categorizeLicense(tc.license)
+			if got != tc.expected {
+				t.Errorf("categorizeLicense(%v) = %q, want %q", tc.license, got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestSearchRedirectsWhenEmpty(t *testing.T) {
+	ts := newTestServer(t)
+	defer ts.close()
+
+	req := httptest.NewRequest("GET", "/search", nil)
+	w := httptest.NewRecorder()
+	ts.handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusSeeOther {
+		t.Errorf("expected status 303, got %d", w.Code)
+	}
+
+	loc := w.Header().Get("Location")
+	if loc != "/" {
+		t.Errorf("expected redirect to /, got %q", loc)
+	}
+}
+
+func TestPackageShowPage_NotFoundServer(t *testing.T) {
+	ts := newTestServer(t)
+	defer ts.close()
+
+	req := httptest.NewRequest("GET", "/package/npm/nonexistent-srv", nil)
+	w := httptest.NewRecorder()
+	ts.handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected status 404, got %d", w.Code)
+	}
+}
+
+func TestVersionShowPage_NotFoundServer(t *testing.T) {
+	ts := newTestServer(t)
+	defer ts.close()
+
+	req := httptest.NewRequest("GET", "/package/npm/nonexistent-srv/1.0.0", nil)
+	w := httptest.NewRecorder()
+	ts.handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected status 404, got %d", w.Code)
+	}
+}
+
+func TestPackageShowPage_WithLicense(t *testing.T) {
+	ts := newTestServer(t)
+	defer ts.close()
+
+	pkg := &database.Package{
+		PURL:      "pkg:npm/show-test-lic",
+		Ecosystem: "npm",
+		Name:      "show-test-lic",
+		License:   sql.NullString{String: "MIT", Valid: true},
+	}
+	if err := ts.db.UpsertPackage(pkg); err != nil {
+		t.Fatalf("failed to upsert package: %v", err)
+	}
+
+	ver := &database.Version{
+		PURL:        "pkg:npm/show-test-lic@1.0.0",
+		PackagePURL: pkg.PURL,
+	}
+	if err := ts.db.UpsertVersion(ver); err != nil {
+		t.Fatalf("failed to upsert version: %v", err)
+	}
+
+	req := httptest.NewRequest("GET", "/package/npm/show-test-lic", nil)
+	w := httptest.NewRecorder()
+	ts.handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "show-test-lic") {
+		t.Error("expected page to contain the package name")
+	}
+}
+
+func TestSearchPage_WithSeededResults(t *testing.T) {
+	ts := newTestServer(t)
+	defer ts.close()
+
+	pkg := &database.Package{
+		PURL:      "pkg:npm/searchable-pkg",
+		Ecosystem: "npm",
+		Name:      "searchable-pkg",
+	}
+	if err := ts.db.UpsertPackage(pkg); err != nil {
+		t.Fatalf("failed to upsert package: %v", err)
+	}
+
+	ver := &database.Version{
+		PURL:        "pkg:npm/searchable-pkg@1.0.0",
+		PackagePURL: pkg.PURL,
+	}
+	if err := ts.db.UpsertVersion(ver); err != nil {
+		t.Fatalf("failed to upsert version: %v", err)
+	}
+
+	artifact := &database.Artifact{
+		VersionPURL: ver.PURL,
+		Filename:    "searchable-pkg-1.0.0.tgz",
+		UpstreamURL: "https://registry.npmjs.org/searchable-pkg/-/searchable-pkg-1.0.0.tgz",
+		StoragePath: sql.NullString{String: "/tmp/test.tgz", Valid: true},
+	}
+	if err := ts.db.UpsertArtifact(artifact); err != nil {
+		t.Fatalf("failed to upsert artifact: %v", err)
+	}
+
+	req := httptest.NewRequest("GET", "/search?q=searchable", nil)
+	w := httptest.NewRecorder()
+	ts.handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "searchable-pkg") {
+		t.Error("expected search results to contain package name")
+	}
+}
+
+func TestSearchPage_PaginationMultiPage(t *testing.T) {
+	ts := newTestServer(t)
+	defer ts.close()
+
+	// Seed 55 packages to exceed one page (limit=50)
+	for i := 0; i < 55; i++ {
+		name := fmt.Sprintf("page-test-%03d", i)
+		pkg := &database.Package{
+			PURL:      fmt.Sprintf("pkg:npm/%s", name),
+			Ecosystem: "npm",
+			Name:      name,
+		}
+		if err := ts.db.UpsertPackage(pkg); err != nil {
+			t.Fatalf("failed to upsert package %d: %v", i, err)
+		}
+		ver := &database.Version{
+			PURL:        fmt.Sprintf("pkg:npm/%s@1.0.0", name),
+			PackagePURL: pkg.PURL,
+		}
+		if err := ts.db.UpsertVersion(ver); err != nil {
+			t.Fatalf("failed to upsert version %d: %v", i, err)
+		}
+		artifact := &database.Artifact{
+			VersionPURL: ver.PURL,
+			Filename:    fmt.Sprintf("%s-1.0.0.tgz", name),
+			UpstreamURL: fmt.Sprintf("https://registry.npmjs.org/%s/-/%s-1.0.0.tgz", name, name),
+			StoragePath: sql.NullString{String: "/tmp/test.tgz", Valid: true},
+		}
+		if err := ts.db.UpsertArtifact(artifact); err != nil {
+			t.Fatalf("failed to upsert artifact %d: %v", i, err)
+		}
+	}
+
+	// First page
+	req := httptest.NewRequest("GET", "/search?q=page-test", nil)
+	w := httptest.NewRecorder()
+	ts.handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "page-test-") {
+		t.Error("expected first page to contain results")
+	}
+
+	// Second page
+	req = httptest.NewRequest("GET", "/search?q=page-test&page=2", nil)
+	w = httptest.NewRecorder()
+	ts.handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200 for page 2, got %d", w.Code)
+	}
+}
+
+func TestSearchPage_EcosystemFilterWithSeededData(t *testing.T) {
+	ts := newTestServer(t)
+	defer ts.close()
+
+	// Seed npm package
+	npmPkg := &database.Package{
+		PURL:      "pkg:npm/eco-filter-npm",
+		Ecosystem: "npm",
+		Name:      "eco-filter-npm",
+	}
+	if err := ts.db.UpsertPackage(npmPkg); err != nil {
+		t.Fatalf("failed to upsert npm package: %v", err)
+	}
+	npmVer := &database.Version{
+		PURL:        "pkg:npm/eco-filter-npm@1.0.0",
+		PackagePURL: npmPkg.PURL,
+	}
+	if err := ts.db.UpsertVersion(npmVer); err != nil {
+		t.Fatalf("failed to upsert npm version: %v", err)
+	}
+	npmArt := &database.Artifact{
+		VersionPURL: npmVer.PURL,
+		Filename:    "eco-filter-npm-1.0.0.tgz",
+		UpstreamURL: "https://registry.npmjs.org/eco-filter-npm/-/eco-filter-npm-1.0.0.tgz",
+		StoragePath: sql.NullString{String: "/tmp/test.tgz", Valid: true},
+	}
+	if err := ts.db.UpsertArtifact(npmArt); err != nil {
+		t.Fatalf("failed to upsert npm artifact: %v", err)
+	}
+
+	// Seed pypi package
+	pypiPkg := &database.Package{
+		PURL:      "pkg:pypi/eco-filter-pypi",
+		Ecosystem: "pypi",
+		Name:      "eco-filter-pypi",
+	}
+	if err := ts.db.UpsertPackage(pypiPkg); err != nil {
+		t.Fatalf("failed to upsert pypi package: %v", err)
+	}
+	pypiVer := &database.Version{
+		PURL:        "pkg:pypi/eco-filter-pypi@1.0.0",
+		PackagePURL: pypiPkg.PURL,
+	}
+	if err := ts.db.UpsertVersion(pypiVer); err != nil {
+		t.Fatalf("failed to upsert pypi version: %v", err)
+	}
+	pypiArt := &database.Artifact{
+		VersionPURL: pypiVer.PURL,
+		Filename:    "eco-filter-pypi-1.0.0.tar.gz",
+		UpstreamURL: "https://files.pythonhosted.org/eco-filter-pypi-1.0.0.tar.gz",
+		StoragePath: sql.NullString{String: "/tmp/test.tar.gz", Valid: true},
+	}
+	if err := ts.db.UpsertArtifact(pypiArt); err != nil {
+		t.Fatalf("failed to upsert pypi artifact: %v", err)
+	}
+
+	// Search with ecosystem filter for npm only
+	req := httptest.NewRequest("GET", "/search?q=eco-filter&ecosystem=npm", nil)
+	w := httptest.NewRecorder()
+	ts.handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "eco-filter-npm") {
+		t.Error("expected npm package in filtered results")
+	}
+	if strings.Contains(body, "eco-filter-pypi") {
+		t.Error("did not expect pypi package in npm-filtered results")
+	}
+}
+
+func TestHandlePackagesListPage(t *testing.T) {
+	ts := newTestServer(t)
+	defer ts.close()
+
+	pkg := &database.Package{
+		PURL:      "pkg:npm/list-test",
+		Ecosystem: "npm",
+		Name:      "list-test",
+	}
+	if err := ts.db.UpsertPackage(pkg); err != nil {
+		t.Fatalf("failed to upsert package: %v", err)
+	}
+
+	ver := &database.Version{
+		PURL:        "pkg:npm/list-test@1.0.0",
+		PackagePURL: pkg.PURL,
+	}
+	if err := ts.db.UpsertVersion(ver); err != nil {
+		t.Fatalf("failed to upsert version: %v", err)
+	}
+
+	artifact := &database.Artifact{
+		VersionPURL: ver.PURL,
+		Filename:    "list-test-1.0.0.tgz",
+		UpstreamURL: "https://registry.npmjs.org/list-test/-/list-test-1.0.0.tgz",
+		StoragePath: sql.NullString{String: "/tmp/test.tgz", Valid: true},
+	}
+	if err := ts.db.UpsertArtifact(artifact); err != nil {
+		t.Fatalf("failed to upsert artifact: %v", err)
+	}
+
+	req := httptest.NewRequest("GET", "/packages", nil)
+	w := httptest.NewRecorder()
+	ts.handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "list-test") {
+		t.Error("expected packages list to contain seeded package")
 	}
 }

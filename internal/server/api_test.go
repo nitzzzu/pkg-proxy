@@ -13,6 +13,7 @@ import (
 
 	"github.com/git-pkgs/proxy/internal/database"
 	"github.com/git-pkgs/proxy/internal/enrichment"
+	"github.com/go-chi/chi/v5"
 )
 
 func TestNewAPIHandler(t *testing.T) {
@@ -366,5 +367,111 @@ func TestHandleSearch_WithNullValues(t *testing.T) {
 	}
 	if result.Hits != 3 {
 		t.Errorf("expected 3 hits, got %d", result.Hits)
+	}
+}
+
+func TestHandlePackagesListAPI(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	svc := enrichment.New(logger)
+
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	db, err := database.Create(dbPath)
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	// Seed two packages
+	for _, name := range []string{"api-list-one", "api-list-two"} {
+		pkg := &database.Package{
+			PURL:      "pkg:npm/" + name,
+			Ecosystem: "npm",
+			Name:      name,
+		}
+		if err := db.UpsertPackage(pkg); err != nil {
+			t.Fatalf("UpsertPackage failed: %v", err)
+		}
+		ver := &database.Version{
+			PURL:        "pkg:npm/" + name + "@1.0.0",
+			PackagePURL: pkg.PURL,
+		}
+		if err := db.UpsertVersion(ver); err != nil {
+			t.Fatalf("UpsertVersion failed: %v", err)
+		}
+		art := &database.Artifact{
+			VersionPURL: ver.PURL,
+			Filename:    name + "-1.0.0.tgz",
+			UpstreamURL: "https://registry.npmjs.org/" + name + "/-/" + name + "-1.0.0.tgz",
+			StoragePath: sql.NullString{String: "/tmp/test.tgz", Valid: true},
+		}
+		if err := db.UpsertArtifact(art); err != nil {
+			t.Fatalf("UpsertArtifact failed: %v", err)
+		}
+	}
+
+	h := NewAPIHandler(svc, db)
+
+	r := chi.NewRouter()
+	r.Get("/api/packages", h.HandlePackagesList)
+
+	req := httptest.NewRequest("GET", "/api/packages", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", w.Code)
+	}
+
+	var resp PackagesListResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if len(resp.Results) < 2 {
+		t.Fatalf("expected at least 2 results, got %d", len(resp.Results))
+	}
+
+	if resp.SortBy != "hits" {
+		t.Errorf("expected default sort by hits, got %q", resp.SortBy)
+	}
+
+	found := false
+	for _, pkg := range resp.Results {
+		if pkg.Name == "api-list-one" || pkg.Name == "api-list-two" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected seeded packages in results")
+	}
+}
+
+func TestHandlePackagesListAPI_InvalidSort(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	svc := enrichment.New(logger)
+
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	db, err := database.Create(dbPath)
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	h := NewAPIHandler(svc, db)
+
+	r := chi.NewRouter()
+	r.Get("/api/packages", h.HandlePackagesList)
+
+	req := httptest.NewRequest("GET", "/api/packages?sort=invalid", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400 for invalid sort, got %d", w.Code)
 	}
 }

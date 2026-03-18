@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -90,5 +92,58 @@ func TestActiveRequestsMiddleware_SkipsMetricsEndpoint(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected status 200, got %d", rec.Code)
+	}
+}
+
+func TestLoggerMiddleware(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	s := &Server{logger: logger}
+
+	called := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusCreated)
+	})
+
+	handler := s.LoggerMiddleware(next)
+
+	req := httptest.NewRequest(http.MethodGet, "/test-path", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if !called {
+		t.Error("expected next handler to be called")
+	}
+
+	if rec.Code != http.StatusCreated {
+		t.Errorf("expected status 201, got %d", rec.Code)
+	}
+}
+
+func TestResponseWriter_WriteHeader(t *testing.T) {
+	tests := []struct {
+		name   string
+		status int
+	}{
+		{"ok", http.StatusOK},
+		{"not found", http.StatusNotFound},
+		{"internal error", http.StatusInternalServerError},
+		{"created", http.StatusCreated},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			rw := &responseWriter{ResponseWriter: rec, status: http.StatusOK}
+			rw.WriteHeader(tc.status)
+
+			if rw.status != tc.status {
+				t.Errorf("expected status %d, got %d", tc.status, rw.status)
+			}
+			if rec.Code != tc.status {
+				t.Errorf("expected underlying recorder status %d, got %d", tc.status, rec.Code)
+			}
+		})
 	}
 }
