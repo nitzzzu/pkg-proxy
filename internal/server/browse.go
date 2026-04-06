@@ -23,7 +23,7 @@ const contentTypePlainText = "text/plain; charset=utf-8"
 // that have no extension. This adds .zip when the original has no extension
 // and the content is likely a zip archive.
 func archiveFilename(filename string) string {
-	if !strings.Contains(filename, ".") {
+	if path.Ext(filename) == "" {
 		return filename + ".zip"
 	}
 	return filename
@@ -40,7 +40,7 @@ func detectSingleRootDir(reader archives.Reader) string {
 
 	var root string
 	for _, f := range files {
-		parts := strings.SplitN(f.Path, "/", 2)
+		parts := strings.SplitN(f.Path, "/", 2) //nolint:mnd // split into dir + rest
 		if len(parts) == 0 {
 			continue
 		}
@@ -61,7 +61,7 @@ func detectSingleRootDir(reader archives.Reader) string {
 // openArchive opens a cached artifact as an archive reader, auto-detecting
 // and stripping a single top-level directory prefix (like GitHub zipballs).
 // For npm, the hardcoded "package/" prefix takes precedence.
-func openArchive(filename string, content io.Reader, ecosystem string) (archives.Reader, error) {
+func openArchive(filename string, content io.Reader, ecosystem string) (archives.Reader, error) { //nolint:ireturn // wraps multiple archive implementations
 	fname := archiveFilename(filename)
 
 	// npm always uses package/ prefix
@@ -86,16 +86,6 @@ func openArchive(filename string, content io.Reader, ecosystem string) (archives
 	return archives.OpenWithPrefix(fname, bytes.NewReader(data), prefix)
 }
 
-// getStripPrefix returns the path prefix to strip for a given ecosystem.
-// npm packages wrap content in a "package/" directory.
-func getStripPrefix(ecosystem string) string {
-	switch ecosystem {
-	case "npm":
-		return "package/"
-	default:
-		return ""
-	}
-}
 
 // BrowseListResponse contains the file listing for a directory in an archives.
 type BrowseListResponse struct {

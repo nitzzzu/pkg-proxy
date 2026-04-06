@@ -2,6 +2,7 @@ package server
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"database/sql"
@@ -589,4 +590,196 @@ func TestHandleComparePage(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected status 400 for invalid separator, got %d", w.Code)
 	}
+}
+
+func TestArchiveFilename(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"package.tar.gz", "package.tar.gz"},
+		{"d2e2f014ccd6ec9fae8dbe6336a4164346a2a856", "d2e2f014ccd6ec9fae8dbe6336a4164346a2a856.zip"},
+		{"file.zip", "file.zip"},
+		{"archive.tgz", "archive.tgz"},
+		{"noext", "noext.zip"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := archiveFilename(tt.input)
+			if got != tt.want {
+				t.Errorf("archiveFilename(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestOpenArchiveStripsSingleRootDir(t *testing.T) {
+	data := createZipArchive(t, map[string]string{
+		"repo-abc123/README.md":    "hello",
+		"repo-abc123/src/main.go":  "package main",
+		"repo-abc123/go.mod":       "module test",
+	})
+	reader, err := openArchive("test.zip", bytes.NewReader(data), "composer")
+	if err != nil {
+		t.Fatalf("openArchive failed: %v", err)
+	}
+	defer func() { _ = reader.Close() }()
+
+	files, err := reader.List()
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+	for _, f := range files {
+		if strings.HasPrefix(f.Path, "repo-abc123/") {
+			t.Errorf("file %q still has root prefix after stripping", f.Path)
+		}
+	}
+}
+
+func TestOpenArchiveMultipleRootDirs(t *testing.T) {
+	data := createZipArchive(t, map[string]string{
+		"src/main.go":    "package main",
+		"docs/README.md": "hello",
+	})
+	reader, err := openArchive("test.zip", bytes.NewReader(data), "composer")
+	if err != nil {
+		t.Fatalf("openArchive failed: %v", err)
+	}
+	defer func() { _ = reader.Close() }()
+
+	files, err := reader.List()
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+	paths := make(map[string]bool)
+	for _, f := range files {
+		paths[f.Path] = true
+	}
+	if !paths["src/main.go"] {
+		t.Error("expected src/main.go to remain unchanged")
+	}
+	if !paths["docs/README.md"] {
+		t.Error("expected docs/README.md to remain unchanged")
+	}
+}
+
+func TestOpenArchiveFlatNoSubdirs(t *testing.T) {
+	data := createZipArchive(t, map[string]string{
+		"README.md": "hello",
+		"main.go":   "package main",
+	})
+	reader, err := openArchive("test.zip", bytes.NewReader(data), "composer")
+	if err != nil {
+		t.Fatalf("openArchive failed: %v", err)
+	}
+	defer func() { _ = reader.Close() }()
+
+	files, err := reader.List()
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+	paths := make(map[string]bool)
+	for _, f := range files {
+		paths[f.Path] = true
+	}
+	if !paths["README.md"] {
+		t.Error("expected README.md at root")
+	}
+}
+
+func TestOpenArchiveNpmUsesPackagePrefix(t *testing.T) {
+	data := createTarGzArchive(t, map[string]string{
+		"package/README.md": "hello",
+		"package/index.js":  "module.exports = {}",
+	})
+	reader, err := openArchive("pkg.tgz", bytes.NewReader(data), "npm")
+	if err != nil {
+		t.Fatalf("openArchive failed: %v", err)
+	}
+	defer func() { _ = reader.Close() }()
+
+	files, err := reader.List()
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+	for _, f := range files {
+		if strings.HasPrefix(f.Path, "package/") {
+			t.Errorf("file %q still has package/ prefix", f.Path)
+		}
+	}
+}
+
+func TestOpenArchiveExtensionlessFilename(t *testing.T) {
+	data := createZipArchive(t, map[string]string{
+		"repo-hash/README.md": "hello",
+	})
+	reader, err := openArchive("d2e2f014ccd6ec9fae8dbe6336a4164346a2a856", bytes.NewReader(data), "composer")
+	if err != nil {
+		t.Fatalf("openArchive failed: %v", err)
+	}
+	defer func() { _ = reader.Close() }()
+
+	files, err := reader.List()
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+	if len(files) == 0 {
+		t.Fatal("expected files in archive")
+	}
+	for _, f := range files {
+		if strings.HasPrefix(f.Path, "repo-hash/") {
+			t.Errorf("file %q still has root prefix", f.Path)
+		}
+	}
+}
+
+func createZipArchive(t *testing.T, files map[string]string) []byte {
+	t.Helper()
+	buf := new(bytes.Buffer)
+	w := zip.NewWriter(buf)
+
+	for name, content := range files {
+		f, err := w.Create(name)
+		if err != nil {
+			t.Fatalf("failed to create zip entry: %v", err)
+		}
+		if _, err := f.Write([]byte(content)); err != nil {
+			t.Fatalf("failed to write zip content: %v", err)
+		}
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("failed to close zip writer: %v", err)
+	}
+	return buf.Bytes()
+}
+
+func createTarGzArchive(t *testing.T, files map[string]string) []byte {
+	t.Helper()
+	buf := new(bytes.Buffer)
+	gw := gzip.NewWriter(buf)
+	tw := tar.NewWriter(gw)
+
+	for name, content := range files {
+		header := &tar.Header{
+			Name: name,
+			Size: int64(len(content)),
+			Mode: 0644,
+		}
+		if err := tw.WriteHeader(header); err != nil {
+			t.Fatalf("failed to write tar header: %v", err)
+		}
+		if _, err := tw.Write([]byte(content)); err != nil {
+			t.Fatalf("failed to write tar content: %v", err)
+		}
+	}
+
+	if err := tw.Close(); err != nil {
+		t.Fatalf("failed to close tar writer: %v", err)
+	}
+	if err := gw.Close(); err != nil {
+		t.Fatalf("failed to close gzip writer: %v", err)
+	}
+	return buf.Bytes()
 }

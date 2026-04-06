@@ -335,25 +335,6 @@ func TestSearchPage_EcosystemFilter(t *testing.T) {
 	}
 }
 
-func TestGetStripPrefix(t *testing.T) {
-	tests := []struct {
-		ecosystem string
-		want      string
-	}{
-		{"npm", "package/"},
-		{"cargo", ""},
-		{"pypi", ""},
-		{"gem", ""},
-		{"", ""},
-	}
-
-	for _, tt := range tests {
-		got := getStripPrefix(tt.ecosystem)
-		if got != tt.want {
-			t.Errorf("getStripPrefix(%q) = %q, want %q", tt.ecosystem, got, tt.want)
-		}
-	}
-}
 
 func TestEcosystemBadgeLabel(t *testing.T) {
 	tests := []struct {

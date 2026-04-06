@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path"
 	"strings"
 	"time"
 
@@ -289,7 +290,7 @@ func (h *ComposerHandler) rewriteDistURL(vmap map[string]any, packageName, versi
 
 	// GitHub zipball URLs end with a bare commit hash (no extension).
 	// Append .zip so the archives library can detect the format.
-	if !strings.Contains(filename, ".") {
+	if path.Ext(filename) == "" {
 		if distType, _ := dist["type"].(string); distType == "zip" {
 			filename += ".zip"
 		}
