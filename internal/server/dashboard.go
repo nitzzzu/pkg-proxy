@@ -114,22 +114,25 @@ type PackagesListPageData struct {
 }
 
 func supportedEcosystems() []string {
+	// this list should be kept sorted in lexicographic order so
+	// that the 'select' list in the UI will be in the expected
+	// order
 	return []string{
-		"npm",
 		"cargo",
-		"gem",
-		"golang",
-		"hex",
-		"pub",
-		"pypi",
-		"maven",
-		"nuget",
 		"composer",
 		"conan",
 		"conda",
 		"cran",
-		"oci",
 		"deb",
+		"gem",
+		"golang",
+		"hex",
+		"maven",
+		"npm",
+		"nuget",
+		"oci",
+		"pub",
+		"pypi",
 		"rpm",
 	}
 }
