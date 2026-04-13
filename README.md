@@ -52,6 +52,14 @@ Cooldown requires publish timestamps in metadata. Registries without a "Yes" in 
 
 \* Hex cooldown requires disabling registry signature verification (`HEX_NO_VERIFY_REPO_ORIGIN=1`) since the proxy re-encodes the protobuf payload.
 
+## Install
+
+```bash
+brew install git-pkgs/git-pkgs/proxy
+```
+
+Or download a binary from the [releases page](https://github.com/git-pkgs/proxy/releases).
+
 ## Quick Start
 
 ```bash
